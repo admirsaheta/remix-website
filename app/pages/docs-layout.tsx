@@ -1,4 +1,11 @@
-import * as React from "react";
+import {
+  useRef,
+  useEffect,
+  forwardRef,
+  createContext,
+  useContext,
+  useState,
+} from "react";
 import {
   Form,
   Link,
@@ -13,7 +20,7 @@ import {
   redirect,
   useNavigate,
 } from "react-router";
-import type { LoaderFunctionArgs, HeadersFunction } from "react-router";
+import type { HeadersFunction } from "react-router";
 import cx from "clsx";
 import { DocSearch } from "~/ui/docsearch";
 
@@ -35,9 +42,18 @@ import { octokit } from "~/lib/github.server";
 import { useColorScheme } from "~/lib/color-scheme";
 import { env } from "~/env.server";
 import { CACHE_CONTROL } from "~/lib/http.server";
+import type { Route } from "./+types/docs-layout";
 
-export const loader = async ({ params }: LoaderFunctionArgs) => {
-  let { lang = "en", ref = "main", "*": splat } = params;
+export const loader = async ({ params }: Route.LoaderArgs) => {
+  // @ts-expect-error -- params doesn't know about child params
+  let { lang, ref, "*": splat } = params;
+
+  if (!lang) {
+    throw redirect("/docs/en/main");
+  }
+  if (!ref) {
+    throw redirect(`/docs/${lang}/main`);
+  }
 
   let branchesInMenu = ["main", "dev"];
   let [tags, branches] = await Promise.all([
@@ -80,6 +96,8 @@ export const headers: HeadersFunction = () => {
   };
 };
 
+type LoaderData = Route.ComponentProps["loaderData"];
+
 export default function DocsLayout() {
   let params = useParams();
   let navigation = useNavigation();
@@ -92,16 +110,16 @@ export default function DocsLayout() {
     !navigation.location!.pathname.match(params.ref);
 
   let location = useLocation();
-  let detailsRef = React.useRef<HTMLDetailsElement>(null);
+  let detailsRef = useRef<HTMLDetailsElement>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     let details = detailsRef.current;
     if (details && details.hasAttribute("open")) {
       details.removeAttribute("open");
     }
   }, [location]);
 
-  let docsContainer = React.useRef<HTMLDivElement>(null);
+  let docsContainer = useRef<HTMLDivElement>(null);
   useCodeBlockCopyButton(docsContainer);
 
   return (
@@ -246,7 +264,7 @@ function VersionSelect() {
     branches,
     currentGitHubRef,
     lang,
-  } = useLoaderData<typeof loader>();
+  } = useLoaderData<LoaderData>();
 
   let { "*": splat } = useParams();
 
@@ -421,7 +439,7 @@ function ColorSchemeToggle() {
   );
 }
 
-let ColorSchemeButton = React.forwardRef<
+let ColorSchemeButton = forwardRef<
   HTMLButtonElement,
   React.ComponentPropsWithRef<"button"> & { svgId: string; label: string }
 >(({ svgId, label, ...props }, forwardedRef) => {
@@ -449,7 +467,7 @@ let ColorSchemeButton = React.forwardRef<
 ColorSchemeButton.displayName = "ColorSchemeButton";
 
 function VersionWarningMobile() {
-  let { isLatest, branches, currentGitHubRef } = useLoaderData<typeof loader>();
+  let { isLatest, branches, currentGitHubRef } = useLoaderData<LoaderData>();
   if (isLatest) return null;
 
   return (
@@ -465,7 +483,7 @@ function VersionWarningMobile() {
 }
 
 function VersionWarningDesktop() {
-  let { isLatest, branches, currentGitHubRef } = useLoaderData<typeof loader>();
+  let { isLatest, branches, currentGitHubRef } = useLoaderData<LoaderData>();
   if (isLatest) return null;
 
   return (
@@ -690,8 +708,9 @@ function Menu() {
                     </svg>
                   </MenuSummary>
                   {category.children.map((doc) => {
+                    // console.log(doc.slug);
                     return (
-                      <MenuLink key={doc.slug} to={doc.slug}>
+                      <MenuLink key={doc.slug} to={`./${doc.slug}`}>
                         {doc.attrs.title} {doc.attrs.new && "🆕"}
                       </MenuLink>
                     );
@@ -708,7 +727,7 @@ function Menu() {
   );
 }
 
-let MenuCategoryContext = React.createContext<{ isOpen: boolean }>({
+let MenuCategoryContext = createContext<{ isOpen: boolean }>({
   isOpen: false,
 });
 
@@ -725,10 +744,10 @@ function MenuCategoryDetails({
 }: MenuCategoryDetailsType) {
   const isActivePath = useIsActivePath(slug);
   // By default only the active path is open
-  const [isOpen, setIsOpen] = React.useState(isActivePath);
+  const [isOpen, setIsOpen] = useState(isActivePath);
 
   // Auto open the details element, useful when navigating from the home page
-  React.useEffect(() => {
+  useEffect(() => {
     if (isActivePath) {
       setIsOpen(true);
     }
@@ -822,7 +841,7 @@ function MenuCategoryLink({
 
 function MenuLink({ to, children }: { to: string; children: React.ReactNode }) {
   // Only discover expanded links to keep manifest calls to a reasonable URL length
-  let { isOpen } = React.useContext(MenuCategoryContext);
+  let { isOpen } = useContext(MenuCategoryContext);
   let isActive = useIsActivePath(to);
   return (
     <Link
@@ -898,7 +917,7 @@ function useIsActivePath(to: string) {
 
 function useCodeBlockCopyButton(ref: React.RefObject<HTMLDivElement>) {
   let location = useLocation();
-  React.useEffect(() => {
+  useEffect(() => {
     let container = ref.current;
     if (!container) return;
 

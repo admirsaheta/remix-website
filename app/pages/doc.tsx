@@ -18,7 +18,7 @@ import { useDelegatedReactRouterLinks } from "~/ui/delegate-links";
 import { getMeta } from "~/lib/meta";
 import { useEffect, useRef, useState } from "react";
 import cx from "clsx";
-import type { Route } from "./+types/docs.$lang.$ref.$";
+import type { Route } from "./+types/doc";
 
 export async function loader({ params, request }: Route.LoaderArgs) {
   let url = new URL(request.url);
@@ -26,6 +26,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   let siteUrl = baseUrl + url.pathname;
   let ogImageUrl = baseUrl + "/img/og.1.jpg";
   invariant(params.ref, "expected `ref` params");
+
   try {
     let slug = params["*"]?.endsWith("/changelog")
       ? "CHANGELOG"
